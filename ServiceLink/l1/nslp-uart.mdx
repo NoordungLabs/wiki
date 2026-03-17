@@ -1,0 +1,80 @@
+---
+sidebar_position: 1
+---
+
+# NSLP/UART
+**NSLP/UART** is the officially supported Layer 1 protocol for serial communication. It is designed to bridge the gap between structured Layer 2 network packets and the raw, continuous byte streams typical of UART (Universal Asynchronous Receiver-Transmitter) connections.
+
+Because standard serial interfaces have no native concept of "packet boundaries" or hardware-level error detection, NSLP/UART enforces strict byte-framing and appends a 32-bit checksum to guarantee data integrity across potentially noisy lines.
+
+## Hunt and Validate
+Because standard serial interfaces have no native concept of "packet boundaries," the NSLP/UART protocol enforces a **"Hunt and Validate"** framing mechanism.
+
+It utilizes a specific **Start of Frame (SOF)** byte (`0x7E`) to signal that the immediately following bytes represent an NSLP packet (Header + Payload), concluding with a 32-bit checksum.
+
+Crucially, to minimize CPU overhead, NSLP/UART **does not use byte-stuffing** (escaping). The byte `0x7E` is allowed to exist naturally within the data payload or header. The protocol relies entirely on the L2 `Size` field and the L1 `CRC-32` to parse and validate frames.
+
+### The Parsing State Machine
+1. **Hunting:** The parser reads the serial stream until it encounters `0x7E`.
+2. **Reading Header:** It blindly reads the next 5 bytes (the fixed L2 Header).
+3. **Reading Payload:** It extracts the `Size` field from the header, and blindly reads that exact number of bytes.
+4. **Validation:** It reads the final 4 bytes (the CRC-32). If the calculated CRC matches, the packet is passed up to Layer 2. If the CRC fails (which handles line noise, or cases where the parser wasn't synced correctly), the buffer is cleared, and the parser immediately returns to the **Hunting** state.
+
+## Frame Structure
+The NSLP/UART frame is a lightweight, protective wrapper. It adds exactly 5 bytes of overhead to the standard L2 packet.
+
+<table>
+	<thead>
+	<tr>
+		<th><small>Offset</small></th>
+		<th><small>Size</small></th>
+		<th><small>Field</small></th>
+		<th><small>Description</small></th>
+	</tr>
+	</thead>
+	<tbody>
+	<tr>
+		<td><code>0</code></td>
+		<td>1 Byte</td>
+		<td><b>Start Byte</b></td>
+		<td>Always <code>0x7E</code>. Signals the beginning of a frame.</td>
+	</tr>
+	<tr>
+		<td><code>1</code></td>
+		<td>5 Bytes (header) + payload</td>
+		<td><b>NSLP Packet (L2)</b></td>
+		<td>The standard NSLP Network routing packet.</td>
+	</tr>
+	<tr>
+		<td><code>5 + N</code></td>
+		<td>4 Bytes</td>
+		<td><b>CRC-32</b></td>
+		<td>Calculated over the NSLP Packet.</td>
+	</tr>
+	</tbody>
+</table>
+
+## Data Integrity (CRC-32)
+
+Serial lines are highly susceptible to interference, baud-rate drift, etc., all of which can flip bits in transit. To ensure corrupted frames are dropped before they can pollute the network layer, NSLP/UART enforces a strict 32-bit Cyclic Redundancy Check (CRC).
+
+*(Note: The CRC-32 is calculated **only** over the encapsulated NSLP Packet. The `0x7E` Start Byte is excluded from the calculation).*
+
+To ensure perfect interoperability across different microcontroller architectures, the NSLP/UART CRC-32 algorithm is strictly defined by the following parameters:
+
+| Parameter                     | Value        | Implementation Notes                                                                                                                                                                                          |
+| :---------------------------- | :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Width**                     | 32 bits      | The underlying state and tables must use `uint32_t`.                                                                                                                                                          |
+| **Polynomial**                | `0x04C11DB7` | Must be defined in its Normal (unreversed) hex representation. The MSB (`0x80000000`) is checked during the left-shift (`c << 1`) operation.                                                                  |
+| **Initial Value**             | `0xFFFFFFFF` | Fed directly into the state initialization.                                                                                                                                                                   |
+| **Input Reflected (RefIn)**   | `False`      | Data is processed **MSB-first**. The byte is shifted to the top 8 bits (`i << 24`) and processed bit-by-bit using left shifts. The update loop extracts the top bits (`crc >> 24`) to XOR with incoming data. |
+| **Output Reflected (RefOut)** | `False`      | The computed CRC variable is returned exactly as it was computed in the loop, without reversing the bits.                                                                                                     |
+| **Final XOR (XorOut)**        | `0x00000000` | There is no final XOR step applied (e.g., doing `crc ^ 0xFFFFFFFF` is invalid).                                                                                                                               |
+
+:::warning
+Even a single flipped bit in the `RefIn` or `XorOut` configuration of a custom driver will cause the CRC to fail on the receiving end, resulting in the L1 layer silently dropping perfectly valid packets. Ensure any custom hardware adapters map perfectly to this table.
+:::
+
+## Reference Implementations
+- **[nslp-desktop](https://github.com/NoordungLabs/nslp-desktop):** Reference implementation library for desktops that also includes NSLP/UART implementation.
+- **[nslp-ino](https://github.com/NoordungLabs/nslp-ino):** A lightweight wrapper around the standard `Stream` class for use with the Arduino ecosystem.

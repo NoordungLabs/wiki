@@ -1,0 +1,71 @@
+---
+sidebar_position: 2
+---
+
+# SL-UDP
+**ServiceLink User Datagram Protocol (SL-UDP)** is the lightweight, stateless transport protocol of the NSLP stack. It strips away the complex state machines, blocking loops, and delivery guarantees of SL-TCP to provide a fast, "fire-and-forget" communication channel.
+
+:::info Protocol Identification
+When encapsulated within a Layer 2 Network packet, SL-UDP payloads are identified by the Protocol ID **`0x02`**.
+:::
+
+SL-UDP is the ideal choice for high-frequency data streams (such as real-time sensor telemetry, periodic device heartbeats, etc.). In these scenarios, getting the absolute newest data immediately is much more important than holding up the transmission queue to recover an older, dropped packet.
+
+## Delivery Mechanics (Fire-and-Forget)
+Unlike SL-TCP, SL-UDP implements **no acknowledgment tracking and no automatic retries**.
+
+When a device transmits an SL-UDP frame, it simply formats the header, pushes it to Layer 2, and immediately moves on to the next task. It does not block, and it does not wait for a reply. If a packet is lost due to line noise or physical medium collisions, the packet is silently dropped. The receiving application must be designed to tolerate occasional data loss or handle timeouts at the application layer (L4).
+
+Because it lacks Sequence Numbers and Acknowledgement fields, the SL-UDP header is extremely lean, reducing bandwidth overhead and maximizing transmission speeds for continuous streams.
+
+## SL-UDP Frame Structure
+
+### General structure
+<table>
+	<thead>
+	<tr>
+		<th colSpan="8">0</th>
+		<th colSpan="8">1</th>
+	</tr>
+	<tr>
+		<th><small><b>0</b></small></th>
+		<th><small>1</small></th>
+		<th><small>2</small></th>
+		<th><small>3</small></th>
+		<th><small>4</small></th>
+		<th><small>5</small></th>
+		<th><small>6</small></th>
+		<th><small>7</small></th>
+		<th><small><b>8</b></small></th>
+		<th><small>9</small></th>
+		<th><small>10</small></th>
+		<th><small>11</small></th>
+		<th><small>12</small></th>
+		<th><small>13</small></th>
+		<th><small>14</small></th>
+		<th><small>15</small></th>
+	</tr>
+	</thead>
+	<tbody>
+	<tr>
+		<td colSpan="8">Source Port</td>
+		<td colSpan="8">Destination Port</td>
+	</tr>
+	<tr>
+		<td colSpan="16">Size (Bytes 0 - 1)</td>
+	</tr>
+	<tr>
+		<td colSpan="16">Data (Bytes 0 - 63746)</td>
+	</tr>
+	</tbody>
+</table>
+
+### Fields
+
+- **Source Port (8 bits):** The port identifier of the sending application process.
+- **Destination Port (8 bits):** The port identifier of the target process on the receiving device.
+- **Size (16 bits):** The exact size of the payload being transmitted.
+- **Data (up to 63,746 bytes):** The encapsulated Layer 4 payload (e.g., custom user structs).
+  :::info
+  The maximum payload size of 63,746 bytes ensures the entire frame remains within acceptable application limits while accounting for the mandatory 4-byte SL-UDP header.
+  :::

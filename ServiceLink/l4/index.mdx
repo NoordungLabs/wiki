@@ -1,0 +1,33 @@
+---
+sidebar_position: 0
+---
+
+# L4 - Application layer
+The **Layer 4 (Application Layer)** is the culmination of the entire NSLP stack. While Layers 1 through 3 are exclusively focused on *how* bytes are transported across the network, Layer 4 focuses entirely on *what* those bytes actually mean.
+
+This is the interface boundary between the network stack and your device's core business logic. At this layer, the raw payload arrays delivered by SL-TCP or SL-UDP are cast back into meaningful data structures that can be interpreted as e.g., state commands or sensor readings.
+
+## Overview
+Because the lower layers have completely abstracted away the physical medium constraints, MTU fragmentation, and delivery retries, the Application Layer operates in a pristine environment. When L4 receives a payload, it can trust that the data is intact and ready to be processed.
+
+Crucially, NSLP treats all Layer 4 data equally. There is no structural difference between a built-in stack utility and a user's custom application data. Everything at Layer 4 is simply an **Application Protocol** defined by a specific struct and bound to a specific port.
+
+These protocols generally fall into two categories, though the stack handles them identically:
+1. **Custom User Protocols:** The unique protocols you define for your specific application's needs (e.g., custom valve control protocol, or a bespoke telemetry protocol).
+2. **System Protocols:** Standardized, high-level protocols officially defined by NSLP that provide universally needed network utilities out-of-the-box.
+
+### The Handoff (Ports to Processes)
+Layer 4 relies heavily on the `Source Port` and `Destination Port` fields provided by the Layer 3 Transport headers.
+
+When an L3 frame arrives, the stack inspects the `Destination Port`. Layer 4 uses this port identifier to route the encapsulated data to the exact function, task, or state machine registered to handle that specific protocol. For example, Port `0x10` might map to your custom valve control protocol, while Port `0x20` is reserved for the system's GPS telemetry protocol.
+
+:::info Struct Serialization
+To ensure cross-device compatibility at L4 (especially when mixing different microcontrollers), developers must strictly define their protocol structs using `#pragma pack` rules to prevent compiler-specific byte padding, and agree on a universal endianness standard for multi-byte variables.
+:::
+
+## Official Application Protocols
+
+While developers will spend most of their time defining Custom User Protocols, the NSLP stack provides officially defined L4 protocols to solve universal distributed-system challenges.
+
+### SL-SP
+**[SL-SP](sl-sp.mdx) (ServiceLink Synchronization Protocol)** is essentially the NSLP equivalent of the standard [Network Time Protocol (NTP)](https://en.wikipedia.org/wiki/Network_Time_Protocol). In a distributed embedded network, ensuring that every node agrees on the exact current time is critical for timestamping logs, synchronizing physical actuators, and correlating sensor data. Operating over the fast, low-latency SL-UDP transport layer, SL-SP allows a central "time master" node to broadcast high-precision clock data to all peripheral devices, compensating for network latency and keeping the entire system operating in perfect synchronization.

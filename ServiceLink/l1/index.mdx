@@ -1,0 +1,24 @@
+---
+sidebar_position: 0
+---
+
+# L1 - Link layer
+The **Layer 1 (Link Layer)** serves as the foundational bridge between the logical routing of the NSLP stack and the physical realities of your hardware. While the upper layers deal in pristine data structures and standardized addressing, Layer 1 is responsible for interacting with the actual transmission medium.
+
+## Overview
+Its primary role is to take formatted Layer 2 packets, encapsulate them according to the rules of the underlying hardware, and reliably push them across the wire. By isolating these hardware-level serialization and timing concerns at the very bottom of the stack, L1 ensures that your application and transport logic remains completely insulated from the physical transport mechanism.
+
+Because physical mediums differ drastically in their capabilities (from the continuous byte streams of serial connections to the strictly constrained frames of a CAN bus) Layer 1 is intentionally polymorphic. Rather than enforcing a single, rigid standard, L1 acts as a standardized interface fulfilled by **medium-specific protocols** (such as NSLP/UART or NSLP/CAN-FD).
+
+These tailored protocols handle the granular, medium-dependent details, including byte framing, synchronization, hardware-level fragmentation, and localized error detection (like CRC).
+
+Ultimately, Layer 1's job is to guarantee that, regardless of how the bits physically traveled, the upper network layers receive intact, ready-to-process packets.
+
+## Official Link Protocols
+While Layer 1 is designed to be fully extensible to any physical medium, the NSLP stack currently provides officially described protocols for the following medium. Each protocol acts as a translation layer, mapping standard L2 packets to the unique hardware constraints of the medium.
+
+### NSLP/UART
+[**NSLP/UART**](nslp-uart.mdx) is built on top of **UART (Universal asynchronous receiver-transmitter)** protocol. It is designed for continuous, unformatted serial byte streams. Because standard UART provides no native concept of packet boundaries, NSLP/UART employs strict byte-framing to encapsulate packets. It also implements error checking (CRC-32) to guarantee data integrity over potentially noisy serial lines, ensuring corrupted frames are dropped before they reach the network layer.
+
+### NSLP/CAN-FD
+[**NSLP/CAN-FD**](nslp-can-fd.mdx) is tailored for the **CAN-FD (Controller Area Network Flexible Data-Rate)** bus. While CAN natively provides robust error checking and hardware-level collision arbitration, it severely restricts payload sizes (typically 8 bytes per standard frame). NSLP/CAN-FD handles the aggressive fragmentation and reassembly of larger packets. It maps the core NSLP network addresses (Source/Destination) into the CAN message ID fields to leverage hardware filtering, while splitting the remaining payload across multiple frames.

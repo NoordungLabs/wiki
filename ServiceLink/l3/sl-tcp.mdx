@@ -1,0 +1,91 @@
+---
+sidebar_position: 1
+---
+
+# SL-TCP
+
+**ServiceLink Transmission Control Protocol (SL-TCP)** is the connection-oriented, stateful transport protocol of the NSLP stack. It is designed specifically for mission-critical payloads where guaranteed, strictly ordered delivery is strictly required (such as dispatching system configuration changes, triggering physical actuators, or sending state-machine commands).
+
+:::info Protocol Identification
+When encapsulated within a Layer 2 Network packet, SL-TCP payloads are identified by the Protocol ID **`0x01`**.
+:::
+
+Because SL-TCP must ensure absolute data certainty over potentially unreliable mediums, it trades a small amount of bandwidth and latency for explicit delivery tracking and automated retries.
+
+## Delivery Mechanics (Stop-and-Wait)
+Standard TCP implementations rely on complex "sliding windows" and massive packet buffers that quickly exhaust the RAM of constrained microcontrollers. To maintain a lightweight footprint, SL-TCP implements a highly reliable, synchronous **Stop-and-Wait ARQ (Automatic Repeat reQuest)** mechanism.
+
+It guarantees delivery through a strict three-step cycle:
+
+1. **Transmit and Block:** The sender creates an SL-TCP frame containing a specific `Sequence Number`, transmits it, and immediately blocks any further transmissions for that specific stream. A localized timeout timer is started.
+2. **Acknowledge:** Upon successfully receiving and validating the frame, the receiving device immediately generates a reply frame. Crucially, the receiver places the sender's original sequence number into the reply's `Acknowledgement Number` field.
+3. **Resolve:**
+   - **Success:** If the sender receives a frame with a matching ACK before its timer expires, the transmission is marked as successful. The block is lifted, and the sender can transmit the next payload.
+   - **Retry:** If the timeout expires before a valid ACK arrives (indicating a dropped packet at Layer 1 or Layer 2), the sender assumes the data was lost and automatically retransmits the exact same frame.
+
+This primitive but bulletproof loop guarantees that the Application Layer (L4) processes state-changes exactly once, and in the exact sequence they were dispatched.
+
+## SL-TCP Frame Structure
+
+### General structure
+<table>
+	<thead>
+	<tr>
+		<th colSpan="8">0</th>
+		<th colSpan="8">1</th>
+	</tr>
+	<tr>
+		<th><small><b>0</b></small></th>
+		<th><small>1</small></th>
+		<th><small>2</small></th>
+		<th><small>3</small></th>
+		<th><small>4</small></th>
+		<th><small>5</small></th>
+		<th><small>6</small></th>
+		<th><small>7</small></th>
+		<th><small><b>8</b></small></th>
+		<th><small>9</small></th>
+		<th><small>10</small></th>
+		<th><small>11</small></th>
+		<th><small>12</small></th>
+		<th><small>13</small></th>
+		<th><small>14</small></th>
+		<th><small>15</small></th>
+	</tr>
+	</thead>
+	<tbody>
+	<tr>
+		<td colSpan="8">Source Port</td>
+		<td colSpan="8">Destination Port</td>
+	</tr>
+	<tr>
+		<td colSpan="8">Sequence Number</td>
+		<td colSpan="8">Acknowledgement Number</td>
+	</tr>
+	<tr>
+		<td colSpan="16">Size (Bytes 0 - 1)</td>
+	</tr>
+	<tr>
+		<td colSpan="16">Data (Bytes 0 - 63744)</td>
+	</tr>
+	</tbody>
+</table>
+
+### Fields
+
+- **Source Port (8 bits):** The port identifier of the sending application process.
+- **Destination Port (8 bits):** The port identifier of the target process on the receiving device.
+- **Sequence Number (8 bits):** A rotating ID used to uniquely identify the current outbound payload.
+  - **Standard Range:** The sequence number always starts at `1` and increments with each new packet. Once it reaches `255`, it wraps around back to `1`.
+  - **Pure ACKs:** A sequence number of `0` is strictly reserved to designate an *acknowledgement packet*.
+    :::note
+    A response packet acting solely as an acknowledgement will have a `Sequence Number` of `0`, its `Acknowledgement Number` set to the ID of the received frame, and a `Size` of `0` (it must not contain any data payload).
+    :::
+- **Acknowledgement Number (8 bits):** Used by the receiver to confirm receipt of a frame, allowing the sender to clear its block.
+  - It must perfectly match the `Sequence Number` of the frame being acknowledged.
+  - The acknowledgement value `0` is explicitly unused, as valid standard sequence numbers only range from `1` to `255`.
+- **Size (16 bits):** The exact size of the payload being transmitted.
+- **Data (up to 63,744 bytes):** The encapsulated Layer 4 payload (e.g., custom user structs).
+  :::info
+  The maximum payload size of 63,744 bytes ensures the entire frame remains within acceptable application limits while accounting for the mandatory 6-byte SL-TCP header.
+  :::
