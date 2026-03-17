@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunknoordung_wiki=globalThis.webpackChunknoordung_wiki||[]).push([[647],{7121(e,r,s){s.r(r),s.d(r,{default:()=>l});s(6540);var n=s(4164),u=s(7559),a=s(5500),i=s(2831),o=s(1656),c=s(4848);function l(e){return(0,c.jsx)(a.e3,{className:(0,n.A)(u.G.wrapper.docsPages),children:(0,c.jsx)(o.A,{children:(0,i.v)(e.route.routes)})})}}}]);

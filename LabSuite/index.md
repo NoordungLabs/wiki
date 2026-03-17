@@ -1,2 +1,0 @@
-# LabSuite
-*Coming soon*
