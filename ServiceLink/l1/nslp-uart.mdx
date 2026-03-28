@@ -12,16 +12,16 @@ Because standard serial interfaces have no native concept of "packet boundaries,
 
 It utilizes a specific **Start of Frame (SOF)** byte (`0x7E`) to signal that the immediately following bytes represent an NSLP packet (Header + Payload), concluding with a 32-bit checksum.
 
-Crucially, to minimize CPU overhead, NSLP/UART **does not use byte-stuffing** (escaping). The byte `0x7E` is allowed to exist naturally within the data payload or header. The protocol relies entirely on the L2 `Size` field and the L1 `CRC-32` to parse and validate frames.
+Crucially, to minimize CPU overhead, NSLP/UART **does not use byte-stuffing** (escaping). The byte `0x7E` is allowed to exist naturally within the data payload or header. The protocol relies entirely on the `Size` field and the L1 `CRC-32` to parse and validate frames.
 
 ### The Parsing State Machine
 1. **Hunting:** The parser reads the serial stream until it encounters `0x7E`.
-2. **Reading Header:** It blindly reads the next 5 bytes (the fixed L2 Header).
-3. **Reading Payload:** It extracts the `Size` field from the header, and blindly reads that exact number of bytes.
+2. **Reading Header:** It reads the next byte to determine the size of the incoming L2 packet.
+3. **Reading Payload:** Based on the `Size` field it blindly reads that exact number of bytes.
 4. **Validation:** It reads the final 4 bytes (the CRC-32). If the calculated CRC matches, the packet is passed up to Layer 2. If the CRC fails (which handles line noise, or cases where the parser wasn't synced correctly), the buffer is cleared, and the parser immediately returns to the **Hunting** state.
 
 ## Frame Structure
-The NSLP/UART frame is a lightweight, protective wrapper. It adds exactly 5 bytes of overhead to the standard L2 packet.
+The NSLP/UART frame is a lightweight, protective wrapper. It adds exactly 6 bytes of overhead to the standard L2 packet.
 
 <table>
 	<thead>
@@ -41,12 +41,18 @@ The NSLP/UART frame is a lightweight, protective wrapper. It adds exactly 5 byte
 	</tr>
 	<tr>
 		<td><code>1</code></td>
+		<td>1 Byte</td>
+		<td><b>Size</b></td>
+		<td>Indicates the length of the NSLP Packet (L2) that follows.</td>
+	</tr>
+	<tr>
+		<td><code>2</code></td>
 		<td>5 Bytes (header) + payload</td>
 		<td><b>NSLP Packet (L2)</b></td>
 		<td>The standard NSLP Network routing packet.</td>
 	</tr>
 	<tr>
-		<td><code>5 + N</code></td>
+		<td><code>7 + N</code></td>
 		<td>4 Bytes</td>
 		<td><b>CRC-32</b></td>
 		<td>Calculated over the NSLP Packet.</td>
@@ -58,7 +64,7 @@ The NSLP/UART frame is a lightweight, protective wrapper. It adds exactly 5 byte
 
 Serial lines are highly susceptible to interference, baud-rate drift, etc., all of which can flip bits in transit. To ensure corrupted frames are dropped before they can pollute the network layer, NSLP/UART enforces a strict 32-bit Cyclic Redundancy Check (CRC).
 
-*(Note: The CRC-32 is calculated **only** over the encapsulated NSLP Packet. The `0x7E` Start Byte is excluded from the calculation).*
+*(Note: The CRC-32 is calculated **only** over `size` field and the encapsulated NSLP Packet. The `0x7E` Start Byte is excluded from the calculation).*
 
 To ensure perfect interoperability across different microcontroller architectures, the NSLP/UART CRC-32 algorithm is strictly defined by the following parameters:
 
