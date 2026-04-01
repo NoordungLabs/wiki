@@ -70,3 +70,6 @@ Because it lacks Sequence Numbers and Acknowledgement fields, the SL-UDP header 
   :::info
   The maximum payload size of 248 bytes ensures the entire frame remains within acceptable application limits while accounting for the mandatory 3-byte SL-UDP header.
   :::
+
+### TL;DR
+SL-UDP protocol code is `0x02` its MTU is `248` bytes due to the 3-byte header. It implements a fire-and-forget delivery model with no acknowledgments, no fragmentation and no automatic retries, making it ideal for high-frequency data streams where speed is prioritized over reliability.

@@ -18,7 +18,7 @@ Standard TCP implementations rely on complex "sliding windows" and massive packe
 It guarantees delivery through a strict three-step cycle:
 
 1. **Transmit and Block:** The sender creates an SL-TCP, transmits it, and immediately blocks any further transmissions for that specific stream. A localized timeout timer is started.
-2. **Acknowledge:** Upon successfully receiving and validating the frame, the receiving device immediately generates a reply frame. Crucially, the receiver places the sender's original **sequence number** into the reply's `Acknowledgement Number` field.
+2. **Acknowledge:** Upon successfully receiving and validating the frame, the receiving device immediately generates a reply frame. Crucially, the receiver places the sender's original **sequence number** into the reply's `sequence number` field, reply's `of sequence number` field must be set to `0`.
 3. **Resolve:**
    - **Success:** If the sender receives a frame with a matching ACK before its timer expires, the transmission is marked as successful. The block is lifted, and the sender can transmit the next payload.
    - **Retry:** If the timeout expires before a valid ACK arrives (indicating a dropped packet at Layer 1 or Layer 2), the sender assumes the data was lost and automatically retransmits the exact same frame.
@@ -63,11 +63,11 @@ This primitive but bulletproof loop guarantees that the Application Layer (L4) p
 		<td colSpan="8">Of Sequence Number</td>
 	</tr>
 	<tr>
-		<td colSpan="8">Acknowledgement Number</td>
 		<td colSpan="8">Size</td>
+		<td colSpan="8">Data (Bytes 0)</td>
 	</tr>
 	<tr>
-		<td colSpan="16">Data (Bytes 0 - 62474)</td>
+		<td colSpan="16">Data (Bytes 1 - 245)</td>
 	</tr>
 	</tbody>
 </table>
@@ -77,17 +77,16 @@ This primitive but bulletproof loop guarantees that the Application Layer (L4) p
 - **Source Port (8 bits):** The port identifier of the sending application process.
 - **Destination Port (8 bits):** The port identifier of the target process on the receiving device.
 - **Sequence Number (8 bits):** A number of specific fragment. They always start at 1.
-  - **Standard Range:** The sequence number always starts at `1` and increments with each new fragment. It must now wrap back to `0` after reaching `255`, this is where SL-TCP's MTU size comes from.
-  - **Pure ACKs:** A sequence number of `0` is strictly reserved to designate an *acknowledgement packet*.
-    :::note
-    A response packet acting solely as an acknowledgement will have a `Sequence Number` of `0` and `Of Sequence Number` also `0`, its `Acknowledgement Number` set to the ID of the received fragment, and a `Size` of `0` (it must not contain any data payload).
-    :::
+  - **Payload packets:** The sequence number always starts at `1` and increments with each new fragment. It must now wrap back to `0` after reaching `255`, this is where SL-TCP's MTU size comes from.
+  - **Acknowledgement Packets:** When the `Of Sequence Number` field is set to `0`, the `Sequence Number` field is repurposed to indicate the specific fragment being acknowledged, rather than a new data fragment.
 - **Of Sequence Number (8 bits):** The total number of fragments in the current transmission. This allows the receiver to know when it has received the final fragment and can safely reassemble the complete payload for Layer 4 processing.
-- **Acknowledgement Number (8 bits):** Used by the receiver to confirm receipt of a fragment, allowing the sender to clear its block.
-  - It must perfectly match the `Sequence Number` of the fragment being acknowledged.
-  - The acknowledgement value `0` is explicitly used in sending payload part of SL-TCP.
+  - **Payload packets:** The of sequence number always has number of frames in this transfer.
+  - **Acknowledgement Packets:** A `of sequence number` of `0` is strictly reserved to designate an *acknowledgement packet*.
 - **Size (8 bits):** The exact size of the payload being transmitted.
-- **Data (up to 245 bytes):** The fragmanted Layer 4 payload (e.g., custom user structs).
+- **Data (up to 246 bytes):** The fragmanted Layer 4 payload (e.g., custom user structs).
   :::info
-  The maximum payload size of 62,475 bytes ensures the entire frame remains within acceptable application limits while accounting for the mandatory 6-byte SL-TCP header.
+  The maximum payload size of 62,730 bytes ensures the entire frame remains within acceptable application limits while accounting for the mandatory 5-byte SL-TCP header.
   :::
+
+### TL;DR
+SL-TCP protocol code is `0x01` its MTU is `62730` bytes due to the 5-byte header and 8-bit sequence numbers. It implements a stop-and-wait ARQ mechanism for guaranteed delivery, with explicit acknowledgments and automatic retries.

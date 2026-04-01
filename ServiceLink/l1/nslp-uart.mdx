@@ -81,6 +81,10 @@ To ensure perfect interoperability across different microcontroller architecture
 Even a single flipped bit in the `RefIn` or `XorOut` configuration of a custom driver will cause the CRC to fail on the receiving end, resulting in the L1 layer silently dropping perfectly valid packets. Ensure any custom hardware adapters map perfectly to this table.
 :::
 
+### TL;DR
+NSLP/UART frames start with `0x7E`, followed by a `Size` byte, the NSLP packet, and a CRC-32 checksum. The CRC-32 is calculated using the standard polynomial `0x04C11DB7` with no input or output reflection and no final XOR. This ensures robust error detection on noisy serial lines.
+
 ## Reference Implementations
 - **[nslp-desktop](https://github.com/NoordungLabs/nslp-desktop):** Reference implementation library for desktops that also includes NSLP/UART implementation.
+- **[nslp-stm32](https://github.com/NoordungLabs/nslp-stm32):** A bridge between the NSLP protocol and STM32 microcontrollers.
 - **[nslp-ino](https://github.com/NoordungLabs/nslp-ino):** A lightweight wrapper around the standard `Stream` class for use with the Arduino ecosystem.

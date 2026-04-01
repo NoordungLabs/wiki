@@ -69,3 +69,6 @@ While the exact bit-level arrangements are dictated by the specific hardware med
   :::
 
 - **Data (up to 251 bytes):** The actual L2 payload being securely delivered across the network.
+
+### TL;DR
+NSLP Layer 2 is the critical bridge between your application data and the physical transmission medium. It enforces a strict `255` byte packet size limit, with a standardized 4-byte header. Latest version is `0x01` and it supports multiple Layer 3 protocols through the Protocol field.
